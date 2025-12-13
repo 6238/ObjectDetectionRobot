@@ -19,7 +19,10 @@ import static edu.wpi.first.units.Units.Degrees;
 
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
+import java.util.Set;
+
 import com.pathplanner.lib.auto.AutoBuilder;
+
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
@@ -46,6 +49,8 @@ import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
 import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
+import frc.robot.util.AutonTeleController;
+
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.Arena2024Crescendo;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.NoteOnFly;
@@ -65,6 +70,9 @@ public class RobotContainer {
 	private final Drive drive;
 	private final Vision vision;
 	private final ObjectDetection objectDetection;
+
+	// Pathfinding
+	private final AutonTeleController autonTeleController;
 
 	// Controller
 	private final CommandXboxController controller = new CommandXboxController(0);
@@ -131,6 +139,11 @@ public class RobotContainer {
 				break;
 		}
 
+		autonTeleController = new AutonTeleController(
+				() -> controller.getLeftY(),
+				() -> controller.getLeftX(),
+				() -> controller.getRightX());
+
 		// Set up auto routines
 		autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
 
@@ -190,6 +203,15 @@ public class RobotContainer {
 					MetersPerSecond.of(10),
 					Degrees.of(30))));
 		}
+
+		controller
+				.b().onTrue(
+						Commands.either(
+								Commands.defer(
+										() -> autonTeleController.GoToPose(
+												objectDetection.closestTrackedObjectPose(drive.getPose()).get()),
+										Set.of(drive)),
+								Commands.none(), () -> objectDetection.getTrackedObjects().length > 0));
 	}
 
 	/**

@@ -34,4 +34,8 @@ public final class Constants {
     /** Replaying from a log file. */
     REPLAY
   }
+
+  public final class PathfindingConfig {
+    public static final double DRIVE_RESUME_DEADBAND = 0.2;
+  }
 }

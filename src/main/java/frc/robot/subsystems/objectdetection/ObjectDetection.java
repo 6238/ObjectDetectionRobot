@@ -7,6 +7,7 @@ import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.math.geometry.Translation2d;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIO.TargetObservation;
+
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.function.DoubleFunction;
@@ -49,6 +50,27 @@ public class ObjectDetection extends SubsystemBase {
 			.toArray(Pose2d[]::new);
 			
 		Logger.recordOutput("ObjectDetection/ObjectPoses", trackedObjectPoses);
+	}
+
+	public Optional<Pose2d> closestTrackedObjectPose(Pose2d currentPose) {
+		if (trackedObjects.isEmpty()) {
+			return Optional.empty();
+		}
+	
+		Pose2d closestPose = null;
+		double minDistanceSquared = Double.MAX_VALUE;
+	
+		for (TrackedObject trackedObject : trackedObjects) {
+			Pose2d objectPose = trackedObject.filteredPose;
+			double distanceSquared = currentPose.getTranslation().getDistance(objectPose.getTranslation());
+	
+			if (distanceSquared < minDistanceSquared) {
+				minDistanceSquared = distanceSquared;
+				closestPose = objectPose;
+			}
+		}
+
+		return Optional.of(closestPose);
 	}
 
 	public TrackedObject[] getTrackedObjects() {
