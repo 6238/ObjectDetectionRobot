@@ -1,8 +1,9 @@
 package frc.robot.subsystems.intake;
 
-import static edu.wpi.first.units.Units.Degrees;
+import static edu.wpi.first.units.Units.*;
 
 import edu.wpi.first.units.measure.Angle;
+import edu.wpi.first.units.measure.Voltage;
 
 public final class IntakeConstants {
   public static enum INTAKE_POSITION {
@@ -16,4 +17,14 @@ public final class IntakeConstants {
       this.position = position;
     }
   }
+
+  public static enum ROLLER_STATE {
+    INTAKE,
+    HOLD,
+    EJECT,
+    STOP,
+  }
+
+  public static Voltage INTAKE_VOLTAGE = Volts.of(6);
+  public static Voltage EJECT_VOLTAGE = Volts.of(6);
 }

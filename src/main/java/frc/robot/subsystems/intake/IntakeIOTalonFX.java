@@ -21,6 +21,7 @@ public class IntakeIOTalonFX implements IntakeIO {
   private final StatusSignal<Voltage> intakeAppliedVoltage;
   private final StatusSignal<Temperature> intakeTemp;
 
+  private final StatusSignal<Angle> rollerPosition;
   private final StatusSignal<AngularVelocity> rollerVelocity;
   private final StatusSignal<Voltage> rollerAppliedVoltage;
   private final StatusSignal<Temperature> rollerTemp;
@@ -39,7 +40,7 @@ public class IntakeIOTalonFX implements IntakeIO {
     rollerMotor = new TalonFX(rollerId);
     TalonFXConfiguration rollerConfig = new TalonFXConfiguration();
 
-    rollerConfig.CurrentLimits.SupplyCurrentLimit = 40.0;
+    rollerConfig.CurrentLimits.SupplyCurrentLimit = 30.0;
     rollerConfig.CurrentLimits.SupplyCurrentLimitEnable = true;
     rollerConfig.MotorOutput.NeutralMode = NeutralModeValue.Coast;
 
@@ -50,6 +51,7 @@ public class IntakeIOTalonFX implements IntakeIO {
     intakeAppliedVoltage = intakeMotor.getMotorVoltage();
     intakeTemp = intakeMotor.getDeviceTemp();
 
+    rollerPosition = rollerMotor.getPosition();
     rollerVelocity = rollerMotor.getVelocity();
     rollerAppliedVoltage = rollerMotor.getMotorVoltage();
     rollerTemp = rollerMotor.getDeviceTemp();
@@ -60,6 +62,7 @@ public class IntakeIOTalonFX implements IntakeIO {
         intakeVelocity,
         intakeAppliedVoltage,
         intakeTemp,
+        rollerPosition,
         rollerVelocity,
         rollerAppliedVoltage,
         rollerTemp);
@@ -75,6 +78,7 @@ public class IntakeIOTalonFX implements IntakeIO {
         intakeVelocity,
         intakeAppliedVoltage,
         intakeTemp,
+        rollerPosition,
         rollerVelocity,
         rollerAppliedVoltage,
         rollerTemp);
@@ -86,6 +90,7 @@ public class IntakeIOTalonFX implements IntakeIO {
     inputs.intakeArmMotorTemp = intakeTemp.getValue();
 
     inputs.rollerMotorConnected = rollerVelocity.getStatus().isOK();
+    inputs.rollerPosition = rollerPosition.getValue();
     inputs.rollerVelocity = rollerVelocity.getValue();
     inputs.rollerAppliedVoltage = rollerAppliedVoltage.getValue();
     inputs.rollerMotorTemp = rollerTemp.getValue();

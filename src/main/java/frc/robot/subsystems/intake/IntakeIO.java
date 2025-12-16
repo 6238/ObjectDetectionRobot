@@ -19,6 +19,7 @@ public interface IntakeIO {
     public Temperature intakeArmMotorTemp = Celsius.of(0);
 
     public boolean rollerMotorConnected = false;
+    public Angle rollerPosition = Degrees.of(0);
     public AngularVelocity rollerVelocity = DegreesPerSecond.of(0);
     public Voltage rollerAppliedVoltage = Volts.of(0);
     public Temperature rollerMotorTemp = Celsius.of(0);
