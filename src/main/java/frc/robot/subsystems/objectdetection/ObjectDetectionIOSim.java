@@ -4,13 +4,11 @@ import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Transform2d;
 import edu.wpi.first.wpilibj.Timer;
-
-import org.ironmaple.simulation.SimulatedArena;
-import org.ironmaple.simulation.gamepieces.GamePieceOnFieldSimulation;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import org.ironmaple.simulation.SimulatedArena;
+import org.ironmaple.simulation.gamepieces.GamePieceOnFieldSimulation;
 
 public class ObjectDetectionIOSim implements ObjectDetectionIO {
   private final double maxDetectionDistance;
@@ -25,7 +23,7 @@ public class ObjectDetectionIOSim implements ObjectDetectionIO {
    * @param maxDetectionAngle Maximum angle in radians from camera center to detect objects
    */
   public ObjectDetectionIOSim(
-    double maxDetectionDistance, double maxDetectionAngle, Supplier<Pose2d> poseSupplier) {
+      double maxDetectionDistance, double maxDetectionAngle, Supplier<Pose2d> poseSupplier) {
     this.maxDetectionDistance = maxDetectionDistance;
     this.maxDetectionAngle = maxDetectionAngle;
     this.minConfidenceThreshold = 0.5;
@@ -49,12 +47,10 @@ public class ObjectDetectionIOSim implements ObjectDetectionIO {
     Pose2d cameraPose = robotPose.transformBy(ObjectDetectionConstants.ROBOT_TO_CAMERA);
 
     GamePieceOnFieldSimulation[] gamePieces =
-        SimulatedArena.getInstance()
-            .gamePiecesOnField()
-            .toArray(GamePieceOnFieldSimulation[]::new);
+        SimulatedArena.getInstance().gamePiecesOnField().toArray(GamePieceOnFieldSimulation[]::new);
 
     List<TargetObservation> observations = new ArrayList<>();
-    
+
     for (GamePieceOnFieldSimulation gamePiece : gamePieces) {
       Pose2d gamePiece2d =
           new Pose2d(
@@ -63,7 +59,7 @@ public class ObjectDetectionIOSim implements ObjectDetectionIO {
               new Rotation2d());
 
       Transform2d cameraToGamePiece = new Transform2d(cameraPose, gamePiece2d);
-      
+
       double dx = cameraToGamePiece.getX();
       double dy = cameraToGamePiece.getY();
       double distance = Math.hypot(dx, dy);
@@ -82,17 +78,11 @@ public class ObjectDetectionIOSim implements ObjectDetectionIO {
       double distanceFactor = 1.0 - (distance / maxDetectionDistance);
       double angleFactor = 1.0 - (Math.abs(angle) / (maxDetectionAngle / 2.0));
       double confidence = (distanceFactor * 0.7 + angleFactor * 0.3);
-      
+
       confidence *= (0.95 + Math.random() * 0.05);
 
       if (confidence >= minConfidenceThreshold) {
-        observations.add(
-            new TargetObservation(
-                dx,
-                dy,
-                area,
-                confidence,
-                Timer.getTimestamp()));
+        observations.add(new TargetObservation(dx, dy, area, confidence, Timer.getTimestamp()));
       }
     }
 

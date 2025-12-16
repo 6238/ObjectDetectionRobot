@@ -103,7 +103,7 @@ public class TolerantPPHolonomicDriveController implements PathFollowingControll
     double xFF = targetState.fieldSpeeds.vxMetersPerSecond;
     double yFF = targetState.fieldSpeeds.vyMetersPerSecond;
 
-    this.translationError = currentPose.getTranslation().minus(targetState.pose.getTranslation());
+    translationError = currentPose.getTranslation().minus(targetState.pose.getTranslation());
 
     if (!this.isEnabled) {
       return ChassisSpeeds.fromFieldRelativeSpeeds(xFF, yFF, 0, currentPose.getRotation());
