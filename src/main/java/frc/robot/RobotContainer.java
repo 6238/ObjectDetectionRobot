@@ -19,9 +19,12 @@ import static edu.wpi.first.units.Units.MetersPerSecond;
 import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.auto.NamedCommands;
+import com.pathplanner.lib.path.PathConstraints;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -40,7 +43,6 @@ import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.objectdetection.ObjectDetection;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIO;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIOJetson;
-import frc.robot.subsystems.objectdetection.ObjectDetectionIOSim;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
@@ -50,6 +52,7 @@ import java.util.Set;
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.Arena2024Crescendo;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.NoteOnFly;
+import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -63,6 +66,7 @@ public class RobotContainer {
   private final Drive drive;
   private final Vision vision;
   private final ObjectDetection objectDetection;
+  //     private final Intake intake;
 
   // Pathfinding
   private final AutonTeleController autonTeleController;
@@ -93,6 +97,8 @@ public class RobotContainer {
         objectDetection =
             new ObjectDetection(
                 new ObjectDetectionIOJetson(), (timestamp) -> drive.getTimestampPose(timestamp));
+        // intake = new Intake(
+        //         new IntakeIOTalonFX());
         break;
 
       case SIM:
@@ -110,8 +116,13 @@ public class RobotContainer {
                 new VisionIOPhotonVisionSim(camera1Name, robotToCamera1, drive::getPose));
         objectDetection =
             new ObjectDetection(
-                new ObjectDetectionIOSim(() -> drive.getPose()),
-                (timestamp) -> drive.getTimestampPose(timestamp));
+                new ObjectDetectionIO() {}, (timestamp) -> drive.getTimestampPose(timestamp));
+        // objectDetection =
+        //     new ObjectDetection(
+        //         new ObjectDetectionIOSim(() -> drive.getPose()),
+        //         (timestamp) -> drive.getTimestampPose(timestamp));
+        // intake = new Intake(
+        //         new IntakeIOTalonFX());
         break;
 
       default:
@@ -127,12 +138,17 @@ public class RobotContainer {
         objectDetection =
             new ObjectDetection(
                 new ObjectDetectionIO() {}, (timestamp) -> drive.getTimestampPose(timestamp));
+        // intake = new Intake(
+        //         new IntakeIO() {
+        //         });
         break;
     }
 
     autonTeleController =
         new AutonTeleController(
             () -> controller.getLeftY(), () -> controller.getLeftX(), () -> controller.getRightX());
+
+    configureNamedCommands();
 
     // Set up auto routines
     autoChooser = new LoggedDashboardChooser<>("Auto Choices", AutoBuilder.buildAutoChooser());
@@ -156,6 +172,49 @@ public class RobotContainer {
     SimulatedArena.overrideInstance(new Arena2024Crescendo());
 
     configureButtonBindings();
+  }
+
+  private void configureNamedCommands() {
+
+    PathConstraints pathfindConstraints =
+        new PathConstraints(3.0, 3.0, Units.degreesToRadians(360), Units.degreesToRadians(540));
+
+    System.out.println("testing");
+    NamedCommands.registerCommand(
+        "DynamicPickup",
+        Commands.either(
+            Commands.defer(
+                () -> {
+                  Pose2d start = drive.getPose();
+                  Pose2d target = objectDetection.closestTrackedObjectPose(drive.getPose()).get();
+                  Logger.recordOutput("Pathfinding/dynamic_target", target);
+                  return Commands.sequence(
+                      drive.pathfindToPoseFaced(
+                          target, pathfindConstraints, () -> target.getTranslation()),
+                      autonTeleController.GoToPose(start, 3.0, 1.0));
+                },
+                Set.of(drive)),
+            Commands.sequence(
+                Commands.waitSeconds(0.3),
+                Commands.runOnce(
+                    () ->
+                        Logger.recordOutput(
+                            "pathfinding/LENGTH", objectDetection.getTrackedObjects().length)),
+                Commands.either(
+                    Commands.defer(
+                        () -> {
+                          Pose2d start = drive.getPose();
+                          Pose2d target =
+                              objectDetection.closestTrackedObjectPose(drive.getPose()).get();
+                          return drive
+                              .pathfindToPoseFaced(
+                                  target, pathfindConstraints, () -> target.getTranslation())
+                              .andThen(autonTeleController.GoToPose(start));
+                        },
+                        Set.of(drive)),
+                    Commands.none(),
+                    () -> objectDetection.getTrackedObjects().length > 0)),
+            () -> objectDetection.getTrackedObjects().length > 0));
   }
 
   /**
@@ -198,17 +257,34 @@ public class RobotContainer {
                           Degrees.of(30))));
     }
 
+    PathConstraints pathfindConstraints =
+        new PathConstraints(3.0, 3.0, Units.degreesToRadians(360), Units.degreesToRadians(540));
+
     controller
         .b()
-        .onTrue(
+        .whileTrue(
             Commands.either(
-                Commands.defer(
-                    () ->
-                        autonTeleController.GoToPose(
-                            objectDetection.closestTrackedObjectPose(drive.getPose()).get()),
-                    Set.of(drive)),
+                Commands.sequence(
+                    // intake.setIntakeArmPositionCommand(IntakeConstants.INTAKE_POSITION.GROUND),
+                    // intake.setRollerStateCommand(IntakeConstants.ROLLER_STATE.INTAKE),
+                    Commands.defer(
+                        () -> {
+                          Pose2d target =
+                              objectDetection.closestTrackedObjectPose(drive.getPose()).get();
+                          return drive.pathfindToPoseFaced(
+                              target, pathfindConstraints, () -> target.getTranslation());
+                        },
+                        Set.of(drive))),
                 Commands.none(),
                 () -> objectDetection.getTrackedObjects().length > 0));
+
+    controller
+        .x()
+        .onTrue(
+            Commands.runOnce(
+                    () -> drive.setPose(new Pose2d(new Translation2d(3, 2), new Rotation2d())),
+                    drive)
+                .ignoringDisable(true));
   }
 
   /**

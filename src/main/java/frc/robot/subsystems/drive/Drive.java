@@ -17,10 +17,12 @@ import static edu.wpi.first.units.Units.*;
 
 import com.ctre.phoenix6.CANBus;
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.commands.PathfindingCommand;
 import com.pathplanner.lib.config.ModuleConfig;
 import com.pathplanner.lib.config.PIDConstants;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPHolonomicDriveController;
+import com.pathplanner.lib.path.PathConstraints;
 import com.pathplanner.lib.pathfinding.Pathfinding;
 import com.pathplanner.lib.util.DriveFeedforwards;
 import com.pathplanner.lib.util.PathPlannerLogging;
@@ -29,6 +31,7 @@ import com.pathplanner.lib.util.swerve.SwerveSetpointGenerator;
 import edu.wpi.first.hal.FRCNetComm.tInstances;
 import edu.wpi.first.hal.FRCNetComm.tResourceType;
 import edu.wpi.first.hal.HAL;
+import edu.wpi.first.math.MathUtil;
 import edu.wpi.first.math.Matrix;
 import edu.wpi.first.math.estimator.SwerveDrivePoseEstimator;
 import edu.wpi.first.math.geometry.Pose2d;
@@ -54,8 +57,10 @@ import frc.robot.Constants.Mode;
 import frc.robot.generated.TunerConstants;
 import frc.robot.util.LocalADStarAK;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Supplier;
 import org.littletonrobotics.junction.AutoLogOutput;
 import org.littletonrobotics.junction.Logger;
 
@@ -381,5 +386,108 @@ public class Drive extends SubsystemBase {
       new Translation2d(TunerConstants.BackLeft.LocationX, TunerConstants.BackLeft.LocationY),
       new Translation2d(TunerConstants.BackRight.LocationX, TunerConstants.BackRight.LocationY)
     };
+  }
+
+  public Command pathfindToPoseFaced(
+      Pose2d targetPose, PathConstraints constraints, Supplier<Translation2d> aimTargetSupplier) {
+
+    Logger.recordOutput("Pathfinding/targetPose", targetPose);
+
+    // Initialize with null to indicate we haven't latched yet
+    AtomicReference<Double> latchedYaw = new AtomicReference<>(null);
+
+    return new PathfindingCommand(
+        targetPose,
+        constraints,
+        0.0,
+        this::getPose,
+        this::getChassisSpeeds,
+        (speeds, feedforwards) -> {
+          Pose2d currentPose = getPose();
+          Translation2d aimTarget = aimTargetSupplier.get();
+          double distance = currentPose.getTranslation().getDistance(aimTarget);
+
+          double targetYaw;
+
+          // Threshold: 0.25 meters (approx 10 inches)
+          if (distance < 0.4) {
+            // If we haven't latched yet, calculate and store the current yaw
+            if (latchedYaw.get() == null) {
+              latchedYaw.set(
+                  Math.atan2(
+                      aimTarget.getY() - currentPose.getY(),
+                      aimTarget.getX() - currentPose.getX()));
+            }
+            targetYaw = latchedYaw.get();
+          } else {
+            // Normal dynamic tracking
+            targetYaw =
+                Math.atan2(
+                    aimTarget.getY() - currentPose.getY(), aimTarget.getX() - currentPose.getX());
+            // Clear latch if we move away (e.g., target moved or robot bumped)
+            latchedYaw.set(null);
+          }
+
+          double currentYaw = currentPose.getRotation().getRadians();
+          double angularError = MathUtil.angleModulus(targetYaw - currentYaw);
+
+          // Rotation P-Loop
+          double omega = angularError * 4.15;
+          omega =
+              MathUtil.clamp(omega, -getMaxAngularSpeedRadPerSec(), getMaxAngularSpeedRadPerSec());
+
+          ChassisSpeeds overriddenSpeeds =
+              new ChassisSpeeds(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond, omega);
+
+          runVelocity(overriddenSpeeds);
+        },
+        new PPHolonomicDriveController(
+            new PIDConstants(4.5, 0.02, 0.1), new PIDConstants(4.5, 0.02, 0.1)),
+        PP_CONFIG,
+        this);
+  }
+
+  public Command pathfindToPoseFaced(
+      Pose2d targetPose,
+      PathConstraints constraints,
+      Supplier<Translation2d> aimTargetSupplier,
+      double goalEndVelocity) {
+
+    Logger.recordOutput("Pathfinding/targetPose", targetPose);
+
+    return new PathfindingCommand(
+        targetPose,
+        constraints,
+        goalEndVelocity, // Goal end velocity
+        this::getPose,
+        this::getChassisSpeeds,
+        (speeds, feedforwards) -> {
+          Logger.recordOutput("Pathfinding/speeds", speeds);
+
+          Pose2d currentPose = getPose();
+          Translation2d aimTarget = aimTargetSupplier.get();
+          double targetYaw =
+              Math.atan2(
+                  aimTarget.getY() - currentPose.getY(), aimTarget.getX() - currentPose.getX());
+
+          double currentYaw = currentPose.getRotation().getRadians();
+          double angularError = MathUtil.angleModulus(targetYaw - currentYaw);
+          double omega = angularError * 4.15;
+
+          omega =
+              MathUtil.clamp(omega, -getMaxAngularSpeedRadPerSec(), getMaxAngularSpeedRadPerSec());
+
+          ChassisSpeeds overriddenSpeeds =
+              new ChassisSpeeds(speeds.vxMetersPerSecond, speeds.vyMetersPerSecond, omega);
+
+          runVelocity(overriddenSpeeds);
+        },
+        new PPHolonomicDriveController(
+            new PIDConstants(4.5, 0.02, 0.1), // Translation PID (Matches AutoBuilder)
+            new PIDConstants(
+                4.5, 0.02, 0.1) // Internal Rotation PID (Not used for aiming, but required)
+            ),
+        PP_CONFIG,
+        this);
   }
 }

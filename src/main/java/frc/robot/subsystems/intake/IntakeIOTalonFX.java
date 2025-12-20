@@ -3,7 +3,8 @@ package frc.robot.subsystems.intake;
 import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
-import com.ctre.phoenix6.controls.ControlRequest;
+import com.ctre.phoenix6.controls.PositionVoltage;
+import com.ctre.phoenix6.controls.VoltageOut;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
@@ -11,6 +12,8 @@ import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Temperature;
 import edu.wpi.first.units.measure.Voltage;
+import frc.robot.subsystems.intake.IntakeConstants.INTAKE_POSITION;
+import frc.robot.subsystems.intake.IntakeConstants.ROLLER_STATE;
 
 public class IntakeIOTalonFX implements IntakeIO {
   private final TalonFX intakeMotor;
@@ -26,8 +29,12 @@ public class IntakeIOTalonFX implements IntakeIO {
   private final StatusSignal<Voltage> rollerAppliedVoltage;
   private final StatusSignal<Temperature> rollerTemp;
 
-  public IntakeIOTalonFX(int intakeId, int rollerId) {
-    intakeMotor = new TalonFX(intakeId);
+  private final PositionVoltage intakeArmPositionVoltage = new PositionVoltage(0).withSlot(0);
+  private final PositionVoltage rollerPositionVoltage = new PositionVoltage(0).withSlot(0);
+  private final VoltageOut rollerVoltageOut = new VoltageOut(0);
+
+  public IntakeIOTalonFX() {
+    intakeMotor = new TalonFX(IntakeConstants.INTAKE_MOTOR_ID);
     TalonFXConfiguration intakeConfig = new TalonFXConfiguration();
 
     intakeConfig.CurrentLimits.SupplyCurrentLimit = 30.0;
@@ -37,7 +44,7 @@ public class IntakeIOTalonFX implements IntakeIO {
 
     intakeMotor.getConfigurator().apply(intakeConfig);
 
-    rollerMotor = new TalonFX(rollerId);
+    rollerMotor = new TalonFX(IntakeConstants.ROLLER_MOTOR_ID);
     TalonFXConfiguration rollerConfig = new TalonFXConfiguration();
 
     rollerConfig.CurrentLimits.SupplyCurrentLimit = 30.0;
@@ -96,13 +103,24 @@ public class IntakeIOTalonFX implements IntakeIO {
     inputs.rollerMotorTemp = rollerTemp.getValue();
   }
 
-  @Override
-  public void setIntakeArmMotorControl(ControlRequest controlRequest) {
-    intakeMotor.setControl(controlRequest);
+  public void setIntakePosition(INTAKE_POSITION newPosition) {
+    intakeMotor.setControl(intakeArmPositionVoltage.withPosition(newPosition.position));
   }
 
-  @Override
-  public void setRollerMotorControl(ControlRequest controlRequest) {
-    rollerMotor.setControl(controlRequest);
+  public void setRollerState(ROLLER_STATE newState) {
+    switch (newState) {
+      case INTAKE:
+        rollerMotor.setControl(rollerVoltageOut.withOutput(IntakeConstants.INTAKE_VOLTAGE));
+        break;
+      case EJECT:
+        rollerMotor.setControl(rollerVoltageOut.withOutput(IntakeConstants.EJECT_VOLTAGE));
+        break;
+      case HOLD:
+        rollerMotor.setControl(rollerPositionVoltage.withPosition(rollerPosition.getValue()));
+        break;
+      case STOP:
+        rollerMotor.setControl(rollerVoltageOut.withOutput(0));
+        break;
+    }
   }
 }

@@ -2,11 +2,12 @@ package frc.robot.subsystems.intake;
 
 import static edu.wpi.first.units.Units.*;
 
-import com.ctre.phoenix6.controls.ControlRequest;
 import edu.wpi.first.units.measure.Angle;
 import edu.wpi.first.units.measure.AngularVelocity;
 import edu.wpi.first.units.measure.Temperature;
 import edu.wpi.first.units.measure.Voltage;
+import frc.robot.subsystems.intake.IntakeConstants.INTAKE_POSITION;
+import frc.robot.subsystems.intake.IntakeConstants.ROLLER_STATE;
 import org.littletonrobotics.junction.AutoLog;
 
 public interface IntakeIO {
@@ -27,7 +28,7 @@ public interface IntakeIO {
 
   public default void updateInputs(IntakeIOInputs inputs) {}
 
-  public default void setIntakeArmMotorControl(ControlRequest controlRequest) {}
+  public default void setIntakePosition(INTAKE_POSITION newPosition) {}
 
-  public default void setRollerMotorControl(ControlRequest controlRequest) {}
+  public default void setRollerState(ROLLER_STATE newRollerState) {}
 }
