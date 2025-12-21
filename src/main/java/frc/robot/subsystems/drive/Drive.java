@@ -495,11 +495,11 @@ public class Drive extends SubsystemBase {
   }
 
   private static final APConstraints kConstraints =
-      new APConstraints().withAcceleration(9.0).withJerk(15.0);
+      new APConstraints().withAcceleration(6.0).withJerk(8.0);
 
   private static final APProfile kProfile =
       new APProfile(kConstraints)
-          .withErrorXY(Centimeters.of(2))
+          .withErrorXY(Centimeters.of(5))
           .withErrorTheta(Degrees.of(0.5))
           .withBeelineRadius(Centimeters.of(8));
 

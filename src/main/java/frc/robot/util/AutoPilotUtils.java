@@ -212,6 +212,8 @@ public class AutoPilotUtils {
                   return generateNotePickupMoveCommand(drivetrain, standoffPose)
                       .until(
                           () -> {
+                            Logger.recordOutput("lastSeenTargetTime", lastSeenTargetTime.get());
+
                             Optional<TrackedObject> currentOpt =
                                 getCurrentTarget(drivetrain, objectDetection);
 
