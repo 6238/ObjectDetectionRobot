@@ -22,9 +22,9 @@ public class TunerConstants {
   // output type specified by SwerveModuleConstants.SteerMotorClosedLoopOutput
   private static final Slot0Configs steerGains =
       new Slot0Configs()
-          .withKP(60)
+          .withKP(40)
           .withKI(0)
-          .withKD(0.5)
+          .withKD(0.3)
           .withKS(0.1)
           .withKV(1.5)
           .withKA(0)

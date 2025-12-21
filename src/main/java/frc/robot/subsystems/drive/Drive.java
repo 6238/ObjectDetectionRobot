@@ -488,14 +488,14 @@ public class Drive extends SubsystemBase {
         new PPHolonomicDriveController(
             new PIDConstants(4.5, 0.02, 0.1), // Translation PID (Matches AutoBuilder)
             new PIDConstants(
-                4.5, 0.02, 0.1) // Internal Rotation PID (Not used for aiming, but required)
+                4.0, 0.02, 0.1) // Internal Rotation PID (Not used for aiming, but required)
             ),
         PP_CONFIG,
         this);
   }
 
   private static final APConstraints kConstraints =
-      new APConstraints().withVelocity(2.0).withAcceleration(5.0).withJerk(3.0);
+      new APConstraints().withAcceleration(9.0).withJerk(15.0);
 
   private static final APProfile kProfile =
       new APProfile(kConstraints)

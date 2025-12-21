@@ -20,11 +20,9 @@ import static frc.robot.subsystems.vision.VisionConstants.*;
 
 import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.auto.NamedCommands;
-import com.pathplanner.lib.path.PathConstraints;
 import edu.wpi.first.math.geometry.Pose2d;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.geometry.Translation2d;
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -41,7 +39,6 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.objectdetection.ObjectDetection;
-import frc.robot.subsystems.objectdetection.ObjectDetection.TrackedObject;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIO;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIOJetson;
 import frc.robot.subsystems.vision.Vision;
@@ -49,12 +46,9 @@ import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
 import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
 import frc.robot.util.AutoPilotUtils;
-import frc.robot.util.AutonTeleController;
-import java.util.Set;
 import org.ironmaple.simulation.SimulatedArena;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.Arena2024Crescendo;
 import org.ironmaple.simulation.seasonspecific.crescendo2024.NoteOnFly;
-import org.littletonrobotics.junction.Logger;
 import org.littletonrobotics.junction.networktables.LoggedDashboardChooser;
 
 /**
@@ -68,10 +62,7 @@ public class RobotContainer {
   private final Drive drive;
   private final Vision vision;
   private final ObjectDetection objectDetection;
-  //     private final Intake intake;
-
-  // Pathfinding
-  private final AutonTeleController autonTeleController;
+  // private final Intake intake;
 
   // Controller
   private final CommandXboxController controller = new CommandXboxController(0);
@@ -100,7 +91,7 @@ public class RobotContainer {
             new ObjectDetection(
                 new ObjectDetectionIOJetson(), (timestamp) -> drive.getTimestampPose(timestamp));
         // intake = new Intake(
-        //         new IntakeIOTalonFX());
+        // new IntakeIOTalonFX());
         break;
 
       case SIM:
@@ -119,16 +110,9 @@ public class RobotContainer {
         objectDetection =
             new ObjectDetection(
                 new ObjectDetectionIO() {}, (timestamp) -> drive.getTimestampPose(timestamp));
-        // objectDetection =
-        //     new ObjectDetection(
-        //         new ObjectDetectionIOSim(() -> drive.getPose()),
-        //         (timestamp) -> drive.getTimestampPose(timestamp));
-        // intake = new Intake(
-        //         new IntakeIOTalonFX());
         break;
 
       default:
-        // Replayed robot, disable IO implementations
         drive =
             new Drive(
                 new GyroIO() {},
@@ -140,15 +124,8 @@ public class RobotContainer {
         objectDetection =
             new ObjectDetection(
                 new ObjectDetectionIO() {}, (timestamp) -> drive.getTimestampPose(timestamp));
-        // intake = new Intake(
-        //         new IntakeIO() {
-        //         });
         break;
     }
-
-    autonTeleController =
-        new AutonTeleController(
-            () -> controller.getLeftY(), () -> controller.getLeftX(), () -> controller.getRightX());
 
     configureNamedCommands();
 
@@ -177,33 +154,17 @@ public class RobotContainer {
   }
 
   private void configureNamedCommands() {
-
-    PathConstraints pathfindConstraints =
-        new PathConstraints(3.0, 3.0, Units.degreesToRadians(360), Units.degreesToRadians(540));
-
     AutoPilotUtils.initializeAutoPilot();
 
     NamedCommands.registerCommand(
         "DynamicPickup",
         Commands.either(
-            Commands.defer(
-                () -> {
-                  return AutoPilotUtils.generateIterativePickupCommand(drive, objectDetection);
-                },
-                Set.of(drive)),
+            AutoPilotUtils.generateIterativePickupCommand(drive, objectDetection, controller),
             Commands.sequence(
                 Commands.waitSeconds(0.3),
-                Commands.runOnce(
-                    () ->
-                        Logger.recordOutput(
-                            "pathfinding/LENGTH", objectDetection.getTrackedObjects().length)),
                 Commands.either(
-                    Commands.defer(
-                        () -> {
-                          return AutoPilotUtils.generateIterativePickupCommand(
-                              drive, objectDetection);
-                        },
-                        Set.of(drive)),
+                    AutoPilotUtils.generateIterativePickupCommand(
+                        drive, objectDetection, controller),
                     Commands.none(),
                     () -> objectDetection.getTrackedObjects().length > 0)),
             () -> objectDetection.getTrackedObjects().length > 0));
@@ -249,24 +210,11 @@ public class RobotContainer {
                           Degrees.of(30))));
     }
 
-    PathConstraints pathfindConstraints =
-        new PathConstraints(3.0, 3.0, Units.degreesToRadians(360), Units.degreesToRadians(540));
-
     controller
         .b()
         .whileTrue(
             Commands.either(
-                Commands.sequence(
-                    // intake.setIntakeArmPositionCommand(IntakeConstants.INTAKE_POSITION.GROUND),
-                    // intake.setRollerStateCommand(IntakeConstants.ROLLER_STATE.INTAKE),
-                    Commands.defer(
-                        () -> {
-                          TrackedObject target =
-                              objectDetection.closestTrackedObject(drive.getPose()).get();
-                          return AutoPilotUtils.generateIterativePickupCommand(
-                              drive, objectDetection);
-                        },
-                        Set.of(drive))),
+                AutoPilotUtils.generateIterativePickupCommand(drive, objectDetection, controller),
                 Commands.none(),
                 () -> objectDetection.getTrackedObjects().length > 0));
 
