@@ -247,6 +247,8 @@ public class AutoPilotUtils {
                         if (atTarget) {
                           targetReached.set(true);
                           return true;
+                        } else {
+                          targetReached.set(false);
                         }
 
                         boolean needReplan =
