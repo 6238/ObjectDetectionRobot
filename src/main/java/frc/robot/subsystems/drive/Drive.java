@@ -499,7 +499,7 @@ public class Drive extends SubsystemBase {
 
   private static final APProfile kProfile =
       new APProfile(kConstraints)
-          .withErrorXY(Centimeters.of(5))
+          .withErrorXY(Centimeters.of(2))
           .withErrorTheta(Degrees.of(0.5))
           .withBeelineRadius(Centimeters.of(8));
 

@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.littletonrobotics.junction.Logger;
 
 public class AutoPilotUtils {
-  public static final double PICKUP_STANDOFF_METERS = 0.9;
+  public static final double PICKUP_STANDOFF_METERS = 0.85;
 
   private static ProfiledPIDController angleController =
       new ProfiledPIDController(
@@ -187,7 +187,7 @@ public class AutoPilotUtils {
       Drive drivetrain, ObjectDetection objectDetection, CommandXboxController controller) {
 
     final double REPLAN_DISTANCE = 0.1;
-    final double SUCCESS_DISTANCE = 0.06;
+    final double SUCCESS_DISTANCE = 0.03;
     final double MAX_TARGET_LOST_TIME = 0.5;
 
     // Mutable state local to the command
