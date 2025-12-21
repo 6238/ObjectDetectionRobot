@@ -101,29 +101,29 @@ public class AutoPilotUtils {
 
   public static Rotation2d calculateEntryAngle(
       WallSegment closestSegment, Pose2d targetPose, Pose2d currentPose) {
-    if (distanceToSegment(targetPose, closestSegment) > WALL_DISTANCE_PERPENDICULAR_THRESHOLD) {
-      // Wall is far enough away, approach directly to target. Return angle between
-      // current pose and target pose
-      return targetPose.getTranslation().minus(currentPose.getTranslation()).getAngle();
-    }
+    // if (distanceToSegment(targetPose, closestSegment) > WALL_DISTANCE_PERPENDICULAR_THRESHOLD) {
+    // Wall is far enough away, approach directly to target. Return angle between
+    // current pose and target pose
+    return targetPose.getTranslation().minus(currentPose.getTranslation()).getAngle();
+    // }
 
     // Wall is to close, approach perpendicular to wall surface
     // this perpendicular direction depends on which side of the wall the robot is
     // on
-    Rotation2d wallDirection =
-        closestSegment
-            .end()
-            .getTranslation()
-            .minus(closestSegment.start().getTranslation())
-            .getAngle();
-    return wallDirection.plus(
-        new Rotation2d(
-            Math.PI
-                / 2.0
-                * Math.signum(
-                    (currentPose.getX() - closestSegment.start().getX()) * wallDirection.getCos()
-                        - (currentPose.getY() - closestSegment.start().getY())
-                            * wallDirection.getSin())));
+    // Rotation2d wallDirection =
+    //     closestSegment
+    //         .end()
+    //         .getTranslation()
+    //         .minus(closestSegment.start().getTranslation())
+    //         .getAngle();
+    // return wallDirection.plus(
+    //     new Rotation2d(
+    //         Math.PI
+    //             / 2.0
+    //             * Math.signum(
+    //                 (currentPose.getX() - closestSegment.start().getX()) * wallDirection.getCos()
+    //                     - (currentPose.getY() - closestSegment.start().getY())
+    //                         * wallDirection.getSin())));
   }
 
   public static Pose2d computeStandoffPose(Drive drivetrain, TrackedObject targetObject) {
