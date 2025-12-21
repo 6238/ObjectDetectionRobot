@@ -11,7 +11,6 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DataLogManager;
-import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -187,7 +186,7 @@ public class AutoPilotUtils {
       Drive drivetrain, ObjectDetection objectDetection, CommandXboxController controller) {
 
     final double REPLAN_DISTANCE = 0.1;
-    final double SUCCESS_DISTANCE = 0.03;
+    final double SUCCESS_DISTANCE = 0.06;
     final double MAX_TARGET_LOST_TIME = 0.5;
 
     // Mutable state local to the command
@@ -281,7 +280,7 @@ public class AutoPilotUtils {
               double now = Timer.getFPGATimestamp();
               boolean targetLost = (now - lastSeenTargetTime.get()) > MAX_TARGET_LOST_TIME;
 
-              if (targetLost && !DriverStation.isAutonomous()) {
+              if (targetLost) {
                 CommandScheduler.getInstance()
                     .schedule(
                         Commands.sequence(
