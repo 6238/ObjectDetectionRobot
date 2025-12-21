@@ -41,12 +41,14 @@ import frc.robot.subsystems.drive.ModuleIO;
 import frc.robot.subsystems.drive.ModuleIOSim;
 import frc.robot.subsystems.drive.ModuleIOTalonFX;
 import frc.robot.subsystems.objectdetection.ObjectDetection;
+import frc.robot.subsystems.objectdetection.ObjectDetection.TrackedObject;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIO;
 import frc.robot.subsystems.objectdetection.ObjectDetectionIOJetson;
 import frc.robot.subsystems.vision.Vision;
 import frc.robot.subsystems.vision.VisionIO;
 import frc.robot.subsystems.vision.VisionIOPhotonVision;
 import frc.robot.subsystems.vision.VisionIOPhotonVisionSim;
+import frc.robot.util.AutoPilotUtils;
 import frc.robot.util.AutonTeleController;
 import java.util.Set;
 import org.ironmaple.simulation.SimulatedArena;
@@ -179,19 +181,14 @@ public class RobotContainer {
     PathConstraints pathfindConstraints =
         new PathConstraints(3.0, 3.0, Units.degreesToRadians(360), Units.degreesToRadians(540));
 
-    System.out.println("testing");
+    AutoPilotUtils.initializeAutoPilot();
+
     NamedCommands.registerCommand(
         "DynamicPickup",
         Commands.either(
             Commands.defer(
                 () -> {
-                  Pose2d start = drive.getPose();
-                  Pose2d target = objectDetection.closestTrackedObjectPose(drive.getPose()).get();
-                  Logger.recordOutput("Pathfinding/dynamic_target", target);
-                  return Commands.sequence(
-                      drive.pathfindToPoseFaced(
-                          target, pathfindConstraints, () -> target.getTranslation()),
-                      autonTeleController.GoToPose(start, 3.0, 1.0));
+                  return AutoPilotUtils.generateIterativePickupCommand(drive, objectDetection);
                 },
                 Set.of(drive)),
             Commands.sequence(
@@ -203,13 +200,8 @@ public class RobotContainer {
                 Commands.either(
                     Commands.defer(
                         () -> {
-                          Pose2d start = drive.getPose();
-                          Pose2d target =
-                              objectDetection.closestTrackedObjectPose(drive.getPose()).get();
-                          return drive
-                              .pathfindToPoseFaced(
-                                  target, pathfindConstraints, () -> target.getTranslation())
-                              .andThen(autonTeleController.GoToPose(start));
+                          return AutoPilotUtils.generateIterativePickupCommand(
+                              drive, objectDetection);
                         },
                         Set.of(drive)),
                     Commands.none(),
@@ -269,10 +261,10 @@ public class RobotContainer {
                     // intake.setRollerStateCommand(IntakeConstants.ROLLER_STATE.INTAKE),
                     Commands.defer(
                         () -> {
-                          Pose2d target =
-                              objectDetection.closestTrackedObjectPose(drive.getPose()).get();
-                          return drive.pathfindToPoseFaced(
-                              target, pathfindConstraints, () -> target.getTranslation());
+                          TrackedObject target =
+                              objectDetection.closestTrackedObject(drive.getPose()).get();
+                          return AutoPilotUtils.generateIterativePickupCommand(
+                              drive, objectDetection);
                         },
                         Set.of(drive))),
                 Commands.none(),

@@ -21,6 +21,6 @@ public class ObjectDetectionConstants {
 
   public static final int POSE_FILTER_TAPS = 5;
 
-  public static final Time OBJECT_HISTORY_TIMEOUT = Seconds.of(1.0);
-  public static final Distance OBJECT_ASSOCIATION_DISTANCE = Meters.of(1.0);
+  public static final Time OBJECT_HISTORY_TIMEOUT = Seconds.of(1);
+  public static final Distance OBJECT_ASSOCIATION_DISTANCE = Meters.of(1.2);
 }

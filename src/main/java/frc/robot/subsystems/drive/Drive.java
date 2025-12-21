@@ -28,6 +28,9 @@ import com.pathplanner.lib.util.DriveFeedforwards;
 import com.pathplanner.lib.util.PathPlannerLogging;
 import com.pathplanner.lib.util.swerve.SwerveSetpoint;
 import com.pathplanner.lib.util.swerve.SwerveSetpointGenerator;
+import com.therekrab.autopilot.APConstraints;
+import com.therekrab.autopilot.APProfile;
+import com.therekrab.autopilot.Autopilot;
 import edu.wpi.first.hal.FRCNetComm.tInstances;
 import edu.wpi.first.hal.FRCNetComm.tResourceType;
 import edu.wpi.first.hal.HAL;
@@ -490,4 +493,15 @@ public class Drive extends SubsystemBase {
         PP_CONFIG,
         this);
   }
+
+  private static final APConstraints kConstraints =
+      new APConstraints().withVelocity(2.0).withAcceleration(5.0).withJerk(3.0);
+
+  private static final APProfile kProfile =
+      new APProfile(kConstraints)
+          .withErrorXY(Centimeters.of(2))
+          .withErrorTheta(Degrees.of(0.5))
+          .withBeelineRadius(Centimeters.of(8));
+
+  public static final Autopilot kAutopilot = new Autopilot(kProfile);
 }
