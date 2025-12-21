@@ -11,6 +11,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.trajectory.TrapezoidProfile;
 import edu.wpi.first.units.measure.LinearVelocity;
 import edu.wpi.first.wpilibj.DataLogManager;
+import edu.wpi.first.wpilibj.DriverStation;
 import edu.wpi.first.wpilibj.GenericHID.RumbleType;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -192,129 +193,134 @@ public class AutoPilotUtils {
     // Mutable state local to the command
     AtomicReference<Pose2d> previousStandoffPose = new AtomicReference<>();
     AtomicReference<Double> lastSeenTargetTime = new AtomicReference<>(Timer.getFPGATimestamp());
+    AtomicReference<Boolean> targetReached = new AtomicReference<>(false);
 
     Command oneSegment =
         Commands.defer(
-                () -> {
-                  Optional<TrackedObject> optTarget = getCurrentTarget(drivetrain, objectDetection);
-                  if (optTarget.isEmpty()) {
-                    return Commands.none();
-                  }
+            () -> {
+              Optional<TrackedObject> optTarget = getCurrentTarget(drivetrain, objectDetection);
+              if (optTarget.isEmpty()) {
+                return Commands.none();
+              }
 
-                  TrackedObject trackedObject = optTarget.get();
+              TrackedObject trackedObject = optTarget.get();
+              Pose2d standoffPose = computeStandoffPose(drivetrain, trackedObject);
 
-                  // Compute standoff pose from the current object pose
-                  Pose2d standoffPose = computeStandoffPose(drivetrain, trackedObject);
+              previousStandoffPose.set(standoffPose);
+              lastSeenTargetTime.set(Timer.getFPGATimestamp());
 
-                  previousStandoffPose.set(standoffPose);
-                  lastSeenTargetTime.set(Timer.getFPGATimestamp());
+              return generateNotePickupMoveCommand(drivetrain, standoffPose)
+                  .until(
+                      () -> {
+                        Logger.recordOutput("lastSeenTargetTime", lastSeenTargetTime.get());
 
-                  return generateNotePickupMoveCommand(drivetrain, standoffPose)
-                      .until(
-                          () -> {
-                            Logger.recordOutput("lastSeenTargetTime", lastSeenTargetTime.get());
+                        Optional<TrackedObject> currentOpt =
+                            getCurrentTarget(drivetrain, objectDetection);
 
-                            Optional<TrackedObject> currentOpt =
-                                getCurrentTarget(drivetrain, objectDetection);
+                        double now = Timer.getFPGATimestamp();
 
-                            double now = Timer.getFPGATimestamp();
+                        if (currentOpt.isEmpty()) {
+                          return (now - lastSeenTargetTime.get()) > MAX_TARGET_LOST_TIME;
+                        }
 
-                            if (currentOpt.isEmpty()) {
-                              return (now - lastSeenTargetTime.get()) > MAX_TARGET_LOST_TIME;
-                            }
+                        TrackedObject currentTracked = currentOpt.get();
+                        Pose2d currentStandoffPose =
+                            computeStandoffPose(drivetrain, currentTracked);
+                        Pose2d prevStandoff = previousStandoffPose.get();
 
-                            TrackedObject currentTracked = currentOpt.get();
-                            Pose2d currentStandoffPose =
-                                computeStandoffPose(drivetrain, currentTracked);
-                            Pose2d prevStandoff = previousStandoffPose.get();
+                        Logger.recordOutput(
+                            "AutoPilotPathing/currentStandoff", currentStandoffPose);
+                        Logger.recordOutput("AutoPilotPathing/prevStandoff", prevStandoff);
 
-                            Logger.recordOutput(
-                                "AutoPilotPathing/currentStandoff", currentStandoffPose);
-                            Logger.recordOutput("AutoPilotPathing/prevStandoff", prevStandoff);
+                        lastSeenTargetTime.set(now);
 
-                            lastSeenTargetTime.set(now);
-
-                            // Success: robot is close to the *standoff* pose
-                            Logger.recordOutput(
-                                "AutoPilotPathing/distance",
-                                currentStandoffPose
+                        Logger.recordOutput(
+                            "AutoPilotPathing/distance",
+                            currentStandoffPose
+                                .getTranslation()
+                                .getDistance(drivetrain.getPose().getTranslation()));
+                        boolean atTarget =
+                            currentStandoffPose
                                     .getTranslation()
-                                    .getDistance(drivetrain.getPose().getTranslation()));
-                            boolean atTarget =
-                                currentStandoffPose
-                                        .getTranslation()
-                                        .getDistance(drivetrain.getPose().getTranslation())
-                                    < SUCCESS_DISTANCE;
+                                    .getDistance(drivetrain.getPose().getTranslation())
+                                < SUCCESS_DISTANCE;
 
-                            if (atTarget) {
-                              return true;
-                            }
+                        if (atTarget) {
+                          targetReached.set(true);
+                          return true;
+                        }
 
-                            // Replan when the *standoff* pose moves too much
-                            boolean needReplan =
-                                currentStandoffPose
-                                        .getTranslation()
-                                        .getDistance(prevStandoff.getTranslation())
-                                    > REPLAN_DISTANCE;
+                        boolean needReplan =
+                            currentStandoffPose
+                                    .getTranslation()
+                                    .getDistance(prevStandoff.getTranslation())
+                                > REPLAN_DISTANCE;
 
-                            if (needReplan) {
-                              previousStandoffPose.set(currentStandoffPose);
-                              DataLogManager.log("new standoff pose (replan)");
-                              Logger.recordOutput(
-                                  "AutoPilotPathing/newStandoff", currentStandoffPose);
-                            }
+                        if (needReplan) {
+                          previousStandoffPose.set(currentStandoffPose);
+                          DataLogManager.log("new standoff pose (replan)");
+                          Logger.recordOutput("AutoPilotPathing/newStandoff", currentStandoffPose);
+                        }
 
-                            return needReplan;
-                          });
-                },
-                Set.of(drivetrain))
-            .onlyWhile(
-                () -> {
-                  // Global kill condition: no target for too long
-                  double now = Timer.getFPGATimestamp();
-                  boolean shouldContinue = (now - lastSeenTargetTime.get()) <= MAX_TARGET_LOST_TIME;
+                        return needReplan;
+                      });
+            },
+            Set.of(drivetrain));
 
-                  if (!shouldContinue) {
-                    CommandScheduler.getInstance()
-                        .schedule(
+    // Add .until() AFTER .repeatedly() to actually stop the loop
+    return oneSegment
+        .repeatedly()
+        .until(
+            () -> {
+              // Stop if target reached
+              if (targetReached.get()) {
+                return true;
+              }
+
+              // Stop if target lost for too long
+              double now = Timer.getFPGATimestamp();
+              boolean targetLost = (now - lastSeenTargetTime.get()) > MAX_TARGET_LOST_TIME;
+
+              if (targetLost && !DriverStation.isAutonomous()) {
+                CommandScheduler.getInstance()
+                    .schedule(
+                        Commands.sequence(
                             Commands.sequence(
-                                Commands.sequence(
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 0))),
-                                Commands.sequence(
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 0))),
-                                Commands.sequence(
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 1)),
-                                    Commands.waitSeconds(0.1),
-                                    Commands.runOnce(
-                                        () -> controller.setRumble(RumbleType.kRightRumble, 0)))));
-                  }
-                  return shouldContinue;
-                });
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 0))),
+                            Commands.sequence(
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 0))),
+                            Commands.sequence(
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kLeftRumble, 0)),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 1)),
+                                Commands.waitSeconds(0.1),
+                                Commands.runOnce(
+                                    () -> controller.setRumble(RumbleType.kRightRumble, 0)))));
+              }
 
-    return oneSegment.repeatedly();
+              return targetLost;
+            });
   }
 }
