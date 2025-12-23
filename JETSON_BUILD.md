@@ -39,6 +39,12 @@ The main robot `build.gradle` includes several lifecycle tasks. The most common 
 - **`deploy-jetson`**: Triggers a `docker build` using BuildKit. It uses Clang-15 and the injected libraries to compile the `inference_app`.
 - **`start-jetson`**: Restarts the vision system with the latest code (see Lifecycle Management below).
 
+### ⚠️ Critical Note on Updating
+Running `deploy-jetson` alone will **not** update the robot's active vision code. 
+- `deploy-jetson` builds the new software, but the old container will continue running the old code.
+- You **must** run `start-jetson` to kill the old container and launch the new one.
+- **The Golden Command**: Always use `./gradlew deploy-jetson start-jetson` to ensure the robot is actually running your latest changes.
+
 ## 5. Lifecycle Management (Robot Mode)
 To ensure the vision system is reliable during a match, we run it as a **managed background service**.
 
