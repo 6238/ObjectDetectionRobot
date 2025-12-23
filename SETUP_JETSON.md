@@ -41,6 +41,22 @@ docker context use jetson
 
 ---
 
+## 4. Get the Code
+The vision code is stored as a "submodule" inside the main robot repository. To download everything correctly, you must clone with the `--recursive` flag.
+
+### For a New Clone:
+```bash
+git clone --recursive https://github.com/rylero/ObjectDetectionRobot.git
+```
+
+### If you already cloned (and the vision folder is empty):
+```bash
+cd ObjectDetectionRobot
+git submodule update --init --recursive
+```
+
+---
+
 ## How to Build and Deploy
 Once setup is complete, you can build the vision code and deploy it to the Jetson using a single command from the project root:
 
@@ -49,6 +65,7 @@ Once setup is complete, you can build the vision code and deploy it to the Jetso
 ```
 
 ## Troubleshooting
+- **Verify LFS**: After cloning, check the size of `ObjectDetectionCoprocessor/nvidia_runtime_libs.tar.gz`. If it is only 100 bytes, you forgot to install **Git LFS** (see Prerequisites). Run `git lfs pull` to fix it.
 - **Verify Connection**: Run `docker ps`. You should see the containers currently running on the Jetson. If you see an error, check your network connection to the robot.
 - **Switch back to Local**: If you need to run Docker containers on your own laptop again, run:
   ```bash
