@@ -23,59 +23,62 @@ We use **Remote Docker Contexts** to build the image.
 To ensure the Docker container matches the physical Jetson hardware perfectly, we use "Tarball Injection."
 
 - **The Problem**: NVIDIA's L4T (Linux for Tegra) drivers and certain libraries (OpenCV 4.10.0, CUDA stubs) are difficult to install via standard `apt-get` inside a container because they require hardware-level access during installation.
-- **The Solution**: We "bundle" the known-good libraries from a working Jetson host into two compressed files:
+- **The Solution**: We "bundle" the known-good libraries from a working Jetson host into compressed files:
   1. `opencv_custom_arm64.tar.gz`: The custom-built OpenCV 4.10.0 with CUDA support.
-  2. `nvidia_runtime_libs.tar.gz`: The 1.2GB "Golden" bundle of NVIDIA drivers, TensorRT, and system math libraries (`libcblas`, `libtbb`, etc.).
+  2. `nvidia_runtime_libs.tar.gz`: The 1.2GB "Golden" bundle of NVIDIA drivers, TensorRT, and system math libraries.
 - **Why?**: This guarantees that the version of OpenCV and CUDA running in the container is **bit-for-bit identical** to the version running on the host Jetson.
 
 ## 4. Building and Deploying
-The main robot `build.gradle` includes a `deploy-jetson` task.
-```bash
-./gradlew deploy-jetson
-```
-This triggers a `docker build` command that uses the `ObjectDetectionCoprocessor/Dockerfile` to compile the C++ `inference_app` using Clang-15 and the injected libraries.
+The main robot `build.gradle` includes several lifecycle tasks. The most common workflow is:
 
-## 5. Runtime Configuration (The "Why" of the Run Command)
-To run the container with GPU and camera access, use the following command:
 ```bash
-docker run --rm -it \
-    --runtime nvidia \
-    --shm-size=1g \
-    --ulimit memlock=-1 \
-    --device /dev/video0:/dev/video0 \
-    jetson-vision
+# Build the code and start it in the background on the Jetson
+./gradlew deploy-jetson start-jetson
 ```
 
-### Explaining the Flags:
-- `--runtime nvidia`: **CRITICAL**. Tells Docker to use the NVIDIA Container Runtime, allowing the container to access the Jetson's GPU.
-- `--shm-size=1g`: Increases Shared Memory. TensorRT requires significant shared memory to load the engine files; without this, the app will crash with an "Out of Memory" error.
-- `--ulimit memlock=-1`: Removes the limit on locked memory. This allows the GPU drivers to pin memory pages, which is required for high-performance DMA transfers between the CPU and GPU.
-- `--device /dev/video0:/dev/video0`: Maps the physical USB/CSI camera into the container. Without this, OpenCV will report "Failed to open camera."
-- `--rm -it`: Automatically removes the container after it stops and allows for interactive terminal input (so you can press ESC to quit).
+- **`deploy-jetson`**: Triggers a `docker build` using BuildKit. It uses Clang-15 and the injected libraries to compile the `inference_app`.
+- **`start-jetson`**: Restarts the vision system with the latest code (see Lifecycle Management below).
 
-## 6. Summary of Key Files
+## 5. Lifecycle Management (Robot Mode)
+To ensure the vision system is reliable during a match, we run it as a **managed background service**.
+
+### Automatic Startup and Recovery
+The container is started with the following flags:
+- `--restart always`: The vision code starts automatically when the Jetson boots and restarts immediately if the application crashes.
+- `-d` (Detached): Runs in the background so it doesn't close when you disconnect your laptop.
+- `-t` (TTY): Simulates a real terminal, ensuring logs are flushed immediately and hardware drivers initialize correctly.
+
+### Monitoring the Robot
+Since the code runs in the background, you can monitor it using Docker's logging system:
+```bash
+# View live logs (FPS, NetworkTables status, detections)
+docker logs -f jetson-vision
+```
+
+## 6. Runtime Configuration (The "Why" of the Run Command)
+The `start-jetson` task uses these critical flags to enable the Jetson's hardware:
+- `--runtime nvidia`: **REQUIRED**. Allows the container to access the Jetson's GPU.
+- `--shm-size=1g`: Increases Shared Memory. Needed for TensorRT to load large engine files.
+- `--ulimit memlock=-1`: Allows the GPU drivers to pin memory for high-speed transfers.
+- `--device /dev/video0:/dev/video0`: Maps the physical camera into the container.
+
+## 7. Summary of Key Files
 - `Dockerfile`: Defines the two-stage build (Builder stage with compilers -> Runtime stage with only the binary and libraries).
 - `CMakeLists.txt`: Configured with `-rpath-link` to force the linker to find the injected libraries during compilation.
 - `reefscape.engine`: The optimized TensorRT model file.
 
-## 7. Internet & Connectivity Requirements
+## 8. Internet & Connectivity Requirements
 
 ### The First Build (Internet Required)
-The very first time you run `./gradlew deploy-jetson`, the Jetson **must** have a high-speed internet connection.
-- **Base Image**: Docker will pull the `nvcr.io/nvidia/l4t-jetpack` image (approx. 3-5 GB).
-- **System Packages**: `apt-get` will download around 200MB of compilers and math libraries.
-- **Gradle & Dependencies**: The build will download the Gradle distribution and any external C++ libraries (like Google Test and WPILib headers) defined in `CMakeLists.txt`.
+The very first time you run `./gradlew deploy-jetson`, the Jetson **must** have a high-speed internet connection to pull the 4GB+ base image and system packages.
 
 ### Subsequent Builds (Offline Capable)
-Once the first build is successful, Docker "caches" every step. 
-- **No Internet Needed**: As long as you don't change the `Dockerfile` or the `FetchContent` sections of `CMakeLists.txt`, you can rebuild and redeploy your code at a competition without an internet connection.
-- **Radio Connectivity**: Your laptop only needs to be on the same local network (Robot Radio or Shop Wi-Fi) as the Jetson to send the code updates.
+Once the first build is successful, everything is cached.
+- **No Internet Needed**: Rebuilding and redeploying code at a competition works 100% offline.
+- **Radio Connectivity**: Your laptop only needs to be on the same local network (Robot Radio) as the Jetson.
 
-### Summary Table
 | Phase | Internet Needed? | Reason |
 |-------|------------------|--------|
 | **Initial Setup** | **YES** | Pulling base image & apt packages |
 | **Code Changes** | **NO** | Re-using cached layers & local source |
-| **Adding new `apt` packages** | **YES** | Downloading new software |
 | **Competition Deployment** | **NO** | Local SSH transfer to Jetson |
-
