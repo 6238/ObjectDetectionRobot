@@ -1,0 +1,3 @@
+[submodule "ObjectDetectionCoprocessor"]
+	path = ObjectDetectionCoprocessor
+	url = https://github.com/rylero/ObjectDetectionCoprocessor.git
