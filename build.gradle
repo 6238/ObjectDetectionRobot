@@ -4,7 +4,31 @@ tasks.register("deploy-jetson", Exec) {
     group = "deploy"
     workingDir 'ObjectDetectionCoprocessor'
     // These variables tell the NVIDIA runtime to allow access to GPU libs during build
+    environment "DOCKER_BUILDKIT", "1"
     environment "NVIDIA_VISIBLE_DEVICES", "all"
     environment "NVIDIA_DRIVER_CAPABILITIES", "all"
-    commandLine 'docker', 'build', '-t', 'jetson-vision', '.'
+    commandLine 'docker', 'build', '--progress=plain', '-t', 'jetson-vision', '.'
+}
+
+// Stop and remove ANY container running our vision image
+tasks.register("stop-jetson", Exec) {
+    description = "Stops and removes all containers running the jetson-vision image."
+    group = "deploy"
+    // Use ancestor filter to find containers even if they have random names like 'silly_williams'
+    commandLine 'sh', '-c', 'docker ps -a -q --filter ancestor=jetson-vision | xargs -r docker rm -f'
+}
+
+// Start the container in "Robot Mode" (detached with auto-restart)
+tasks.register("start-jetson", Exec) {
+    description = "Starts the jetson-vision container in detached mode with auto-restart."
+    group = "deploy"
+    dependsOn "stop-jetson"
+    commandLine 'docker', 'run', '-d', 
+        '--name', 'jetson-vision',
+        '--restart', 'always',
+        '--runtime', 'nvidia',
+        '--shm-size=1g',
+        '--ulimit', 'memlock=-1',
+        '--device', '/dev/video0:/dev/video0',
+        'jetson-vision'
 }
