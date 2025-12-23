@@ -14,8 +14,8 @@ tasks.register("deploy-jetson", Exec) {
 tasks.register("stop-jetson", Exec) {
     description = "Stops and removes all containers running the jetson-vision image."
     group = "deploy"
-    // Use ancestor filter to find containers even if they have random names like 'silly_williams'
-    commandLine 'sh', '-c', 'docker ps -a -q --filter ancestor=jetson-vision | xargs -r docker rm -f'
+    // Force kill specific name and any ancestors, then wait for release
+    commandLine 'sh', '-c', 'docker rm -f jetson-vision 2>/dev/null || true; docker ps -a -q --filter ancestor=jetson-vision | xargs -r docker rm -f 2>/dev/null || true; for i in {1..10}; do if ! docker ps -a --format "{{.Names}}" | grep -q "^jetson-vision$"; then break; fi; sleep 1; done'
 }
 
 // Start the container in "Robot Mode" (detached with auto-restart)
@@ -23,7 +23,8 @@ tasks.register("start-jetson", Exec) {
     description = "Starts the jetson-vision container in detached mode with auto-restart."
     group = "deploy"
     dependsOn "stop-jetson"
-    commandLine 'docker', 'run', '-d', 
+    // We add -t (Pseudo-TTY) to ensure output is unbuffered and drivers initialize correctly
+    commandLine 'docker', 'run', '-d', '-t',
         '--name', 'jetson-vision',
         '--restart', 'always',
         '--runtime', 'nvidia',
