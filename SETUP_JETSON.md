@@ -25,7 +25,7 @@ Copy your new key to the Jetson so you can log in without a password.
 **Note:** You will need the password for the `frc6238` user for this step.
 
 ```bash
-ssh-copy-id frc6238@10.62.38.200
+ssh-copy-id frc6238@10.62.38.200 (or whatever ip of Jetson is)
 ```
 
 ## Step 3: Configure Docker Context
@@ -33,7 +33,7 @@ Tell your local Docker command to send its build instructions to the Jetson inst
 
 ```bash
 # Create the link to the Jetson
-docker context create jetson --docker "host=ssh://frc6238@10.62.38.200"
+docker context create jetson --docker "host=ssh://frc6238@10.62.38.200"  (or whatever IP of Jetson is)
 
 # Switch your machine to "Jetson Mode"
 docker context use jetson
@@ -46,7 +46,7 @@ The vision code is stored as a "submodule" inside the main robot repository. To 
 
 ### For a New Clone:
 ```bash
-git clone --recursive https://github.com/rylero/ObjectDetectionRobot.git
+git clone --recursive https://github.com/6238/ObjectDetectionRobot.git
 ```
 
 ### If you already cloned (and the vision folder is empty):
